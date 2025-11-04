@@ -7,8 +7,6 @@ Proyecto Rust + Raylib que genera una estrella/sol animada usando shaders GLSL c
 - Teclas: 1/2 (noiseScale), 3/4 (noiseAmp), 5/6 (flareAmp), 7/8 (emissionAmp), 9/0 (colorHotness)
 
 ## Animación
-![Animación del Sol](docs/sol.gif)  // Añade tu GIF aquí
-
 Video (YouTube): https://youtu.be/-EqNQghlaDk?si=6mj_RPizHt6GRTtH
 
 ## Explicación Técnica
