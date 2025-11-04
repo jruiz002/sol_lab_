@@ -1,0 +1,7 @@
+[package]
+name = "sol_procedural"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+raylib = "5.0"
