@@ -1,138 +1,140 @@
 use raylib::prelude::*;
 
+mod star;
+mod camera;
+mod uniforms;
+
+use star::Star;
+use camera::OrbitCamera;
+
 fn main() {
-    // Ventana
+    // Inicializar ventana
     let (mut rl, thread) = raylib::init()
         .size(1280, 720)
-        .title("Sol Procedural - Shaders + Ruido")
+        .title("Sol Procedural - Shaders + Ruido | Lab 5 Gráficas por Computadora")
         .build();
 
     rl.set_target_fps(60);
 
-    // Cámara simple
-    let mut camera = Camera3D::perspective(
-        Vector3::new(0.0, 0.0, 4.0),
-        Vector3::new(0.0, 0.0, 0.0),
-        Vector3::new(0.0, 1.0, 0.0),
-        45.0,
-    );
+    // Crear cámara orbital para mejor visualización
+    let mut camera = OrbitCamera::new();
 
-    // Cargar shader (vertex + fragment)
-    let mut shader = rl
-        .load_shader(
-            &thread,
-            Some("assets/shaders/sol.vs"),
-            Some("assets/shaders/sol.fs"),
-        );
+    // Crear la estrella con shaders cargados
+    let mut star = match Star::new(&mut rl, &thread) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error cargando shaders: {}", e);
+            return;
+        }
+    };
 
-    // Obtener ubicaciones de uniforms (API nueva en raylib-rs: sobre Shader)
-    let loc_time = shader.get_shader_location("u_time");
-    let loc_noise_scale = shader.get_shader_location("u_noiseScale");
-    let loc_noise_amp = shader.get_shader_location("u_noiseAmp");
-    let loc_flare_amp = shader.get_shader_location("u_flareAmp");
-    let loc_emission_amp = shader.get_shader_location("u_emissionAmp");
-    let loc_pulse_speed = shader.get_shader_location("u_pulseSpeed");
-    let loc_color_hotness = shader.get_shader_location("u_colorHotness");
+    // Variables de tiempo para animación continua y cíclica
+    let mut time: f32;
 
-    // Parámetros ajustables
-    let mut time: f32 = 0.0;
-    let mut params = StarParams::default();
+    println!("=== CONTROLES ===");
+    println!("WASD: Rotar cámara");
+    println!("Flechas Arriba/Abajo: Zoom");
+    println!("SPACE: Rotación automática");
+    println!("1/2: Escala de ruido");
+    println!("3/4: Amplitud de ruido"); 
+    println!("5/6: Amplitud de flares");
+    println!("7/8: Amplitud de emisión");
+    println!("9/0: Temperatura de color");
+    println!("Q/E: Velocidad de pulsación");
+    println!("R: Reset parámetros");
+    println!("===============");
 
-    // Valores iniciales de uniforms
-    // Los uniforms se setean dentro del bloque de dibujo (API de raylib-rs)
-
-    // Bucle principal
+    // Bucle principal de renderizado
     while !rl.window_should_close() {
-        // Tiempo animación
-        time = rl.get_time() as f32; // continuo y cíclico con sin/cos en el shader
+        // Actualizar tiempo para animación continua
+        time = rl.get_time() as f32;
 
-        // Controles simples para ajustar parámetros
-        if rl.is_key_pressed(KeyboardKey::KEY_ONE) {
-            params.noise_scale *= 1.2;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_TWO) {
-            params.noise_scale *= 0.8;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_THREE) {
-            params.noise_amp *= 1.1;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_FOUR) {
-            params.noise_amp *= 0.9;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_FIVE) {
-            params.flare_amp *= 1.1;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_SIX) {
-            params.flare_amp *= 0.9;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_SEVEN) {
-            params.emission_amp *= 1.1;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_EIGHT) {
-            params.emission_amp *= 0.9;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_NINE) {
-            params.color_hotness = (params.color_hotness + 0.05).min(1.0);
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_ZERO) {
-            params.color_hotness = (params.color_hotness - 0.05).max(0.0);
-        }
+        // Procesar input de cámara
+        camera.process_input(&rl);
 
-        // Dibujado
+        // Procesar input para parámetros de la estrella
+        star.process_input(&rl);
+
+        // Actualizar uniforms del shader con tiempo y parámetros
+        star.update_uniforms(time);
+
+        // === RENDERIZADO ===
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
-        // Set de uniforms durante el frame ANTES de entrar en shader mode
-        shader.set_shader_value(loc_time, time);
-        shader.set_shader_value(loc_noise_scale, params.noise_scale);
-        shader.set_shader_value(loc_noise_amp, params.noise_amp);
-        shader.set_shader_value(loc_flare_amp, params.flare_amp);
-        shader.set_shader_value(loc_emission_amp, params.emission_amp);
-        shader.set_shader_value(loc_pulse_speed, params.pulse_speed);
-        shader.set_shader_value(loc_color_hotness, params.color_hotness);
-
-        // Modo 3D + Shader RAII
+        // Renderizado 3D
         {
-            let mut d3d = d.begin_mode3D(camera);
-            {
-                let mut sm = d3d.begin_shader_mode(&mut shader);
-                // Esfera base obligatoria
-                sm.draw_sphere(Vector3::new(0.0, 0.0, 0.0), 1.0, Color::WHITE);
-            } // end shader mode
-        } // end mode3D
-
-        d.draw_text(
-            &format!(
-                "1/2 scale {:.2} | 3/4 amp {:.2} | 5/6 flare {:.2} | 7/8 emission {:.2} | 9/0 hot {:.2}",
-                params.noise_scale, params.noise_amp, params.flare_amp, params.emission_amp, params.color_hotness
-            ),
-            10,
-            10,
-            18,
-            Color::RAYWHITE,
-        );
-    }
-}
-
-#[derive(Clone, Copy)]
-struct StarParams {
-    noise_scale: f32,
-    noise_amp: f32,
-    flare_amp: f32,
-    emission_amp: f32,
-    pulse_speed: f32,
-    color_hotness: f32,
-}
-
-impl Default for StarParams {
-    fn default() -> Self {
-        Self {
-            noise_scale: 4.0, // Aumentado para más detalle
-            noise_amp: 0.8,   // Mayor amplitud para turbulencia visible
-            flare_amp: 0.25,  // Flares más pronunciados para realismo solar
-            emission_amp: 2.5, // Brillo más intenso
-            pulse_speed: 0.3, // Pulsación más lenta para efecto natural
-            color_hotness: 0.5, // Medio para naranja-amarillo inicial
+            let mut d3d = d.begin_mode3D(camera.camera);
+            star.render(&mut d3d);
         }
+
+        // UI: Mostrar información de parámetros actuales
+        draw_ui(&mut d, &star);
     }
 }
+
+/// Dibujar interfaz de usuario con información de parámetros
+fn draw_ui(d: &mut RaylibDrawHandle, star: &Star) {
+    let params = &star.params;
+    
+    // Título
+    d.draw_text(
+        "Sol Procedural - Laboratorio 5",
+        10,
+        10,
+        20,
+        Color::YELLOW,
+    );
+
+    // Parámetros actuales
+    d.draw_text(
+        &format!("Noise Scale: {:.2} (1/2)", params.noise_scale),
+        10,
+        40,
+        16,
+        Color::RAYWHITE,
+    );
+    d.draw_text(
+        &format!("Noise Amp: {:.2} (3/4)", params.noise_amp),
+        10,
+        60,
+        16,
+        Color::RAYWHITE,
+    );
+    d.draw_text(
+        &format!("Flare Amp: {:.2} (5/6)", params.flare_amp),
+        10,
+        80,
+        16,
+        Color::RAYWHITE,
+    );
+    d.draw_text(
+        &format!("Emission: {:.2} (7/8)", params.emission_amp),
+        10,
+        100,
+        16,
+        Color::RAYWHITE,
+    );
+    d.draw_text(
+        &format!("Color Hotness: {:.2} (9/0)", params.color_hotness),
+        10,
+        120,
+        16,
+        Color::RAYWHITE,
+    );
+    d.draw_text(
+        &format!("Pulse Speed: {:.2} (Q/E)", params.pulse_speed),
+        10,
+        140,
+        16,
+        Color::RAYWHITE,
+    );
+
+    // Controles
+    d.draw_text("WASD: Cámara | ↑↓: Zoom | SPACE: Auto-rotar | R: Reset", 10, 680, 14, Color::LIGHTGRAY);
+
+    // Información técnica
+    d.draw_text("Ruido: Simplex + Cellular | Animación: Continua y Cíclica", 10, 700, 12, Color::GRAY);
+}
+
+
