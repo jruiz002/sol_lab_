@@ -43,7 +43,7 @@ cargo run --release
 
 ![Animación de la Estrella](demo.gif)
 
-Video demostración: [YouTube Link](https://youtu.be/-EqNQghlaDk?si=6mj_RPizHt6GRTtH)
+Video demostración: [YouTube Link](https://youtu.be/oZPAKLF-CW0?si=UXVf3DDdWRwABUyb)
 
 ## 🧮 Implementación Técnica
 
